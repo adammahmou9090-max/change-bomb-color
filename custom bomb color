@@ -1,0 +1,345 @@
+
+--// AEATZZE - Bomb Color Changer
+--// Original colors, RGB, Sparkling effects and draggable UI
+
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local old = playerGui:FindFirstChild("AEATZZE_BombColor")
+if old then old:Destroy() end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "AEATZZE_BombColor"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.Parent = playerGui
+
+local function corner(obj, radius)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, radius)
+    c.Parent = obj
+end
+
+local main = Instance.new("Frame")
+main.Size = UDim2.fromOffset(300, 285)
+main.Position = UDim2.new(0.5, -150, 0.5, -142)
+main.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+main.BorderSizePixel = 0
+main.Active = true
+main.Parent = gui
+corner(main, 10)
+
+local stroke = Instance.new("UIStroke")
+stroke.Color = Color3.fromRGB(0, 160, 255)
+stroke.Thickness = 1.5
+stroke.Parent = main
+
+local top = Instance.new("Frame")
+top.Size = UDim2.new(1, 0, 0, 35)
+top.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+top.BorderSizePixel = 0
+top.Parent = main
+corner(top, 10)
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -65, 1, 0)
+title.Position = UDim2.fromOffset(10, 0)
+title.BackgroundTransparency = 1
+title.Text = "AEATZZE | BOMB COLOR"
+title.TextColor3 = Color3.new(1, 1, 1)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 12
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = top
+
+local minimize = Instance.new("TextButton")
+minimize.Size = UDim2.fromOffset(24, 23)
+minimize.Position = UDim2.new(1, -54, 0, 6)
+minimize.Text = "-"
+minimize.Font = Enum.Font.GothamBold
+minimize.TextColor3 = Color3.new(1, 1, 1)
+minimize.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+minimize.Parent = top
+corner(minimize, 5)
+
+local close = Instance.new("TextButton")
+close.Size = UDim2.fromOffset(24, 23)
+close.Position = UDim2.new(1, -27, 0, 6)
+close.Text = "X"
+close.Font = Enum.Font.GothamBold
+close.TextColor3 = Color3.new(1, 1, 1)
+close.BackgroundColor3 = Color3.fromRGB(190, 45, 55)
+close.Parent = top
+corner(close, 5)
+
+local content = Instance.new("Frame")
+content.Size = UDim2.new(1, -20, 1, -48)
+content.Position = UDim2.fromOffset(10, 42)
+content.BackgroundTransparency = 1
+content.Parent = main
+
+local colorTitle = Instance.new("TextLabel")
+colorTitle.Size = UDim2.new(1, 0, 0, 20)
+colorTitle.BackgroundTransparency = 1
+colorTitle.Text = "BOMB COLOUR"
+colorTitle.TextColor3 = Color3.fromRGB(200, 200, 200)
+colorTitle.Font = Enum.Font.GothamBold
+colorTitle.TextSize = 12
+colorTitle.Parent = content
+
+local colorList = Instance.new("ScrollingFrame")
+colorList.Size = UDim2.new(1, 0, 0, 105)
+colorList.Position = UDim2.fromOffset(0, 23)
+colorList.BackgroundTransparency = 1
+colorList.BorderSizePixel = 0
+colorList.ScrollBarThickness = 3
+colorList.CanvasSize = UDim2.fromOffset(0, 0)
+colorList.Parent = content
+
+local grid = Instance.new("UIGridLayout")
+grid.CellSize = UDim2.fromOffset(83, 29)
+grid.CellPadding = UDim2.fromOffset(5, 5)
+grid.Parent = colorList
+
+grid:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    colorList.CanvasSize = UDim2.fromOffset(0, grid.AbsoluteContentSize.Y + 5)
+end)
+
+local effectTitle = Instance.new("TextLabel")
+effectTitle.Size = UDim2.new(1, 0, 0, 20)
+effectTitle.Position = UDim2.fromOffset(0, 132)
+effectTitle.BackgroundTransparency = 1
+effectTitle.Text = "CHANGE EFFECTS"
+effectTitle.TextColor3 = Color3.fromRGB(200, 200, 200)
+effectTitle.Font = Enum.Font.GothamBold
+effectTitle.TextSize = 12
+effectTitle.Parent = content
+
+local effectList = Instance.new("Frame")
+effectList.Size = UDim2.new(1, 0, 0, 84)
+effectList.Position = UDim2.fromOffset(0, 153)
+effectList.BackgroundTransparency = 1
+effectList.Parent = content
+
+local effectLayout = Instance.new("UIListLayout")
+effectLayout.Padding = UDim.new(0, 5)
+effectLayout.Parent = effectList
+
+local selectedColor = Color3.fromRGB(0, 160, 255)
+local selectedEffect = nil
+local rainbowColor = false
+local rainbowEffect = false
+local hue = 0
+local activeConnections = {}
+local original = {}
+local targets = {}
+
+local function disconnect(key)
+    if activeConnections[key] then
+        activeConnections[key]:Disconnect()
+        activeConnections[key] = nil
+    end
+end
+
+local function getBombs()
+    local found = {}
+    local backpack = player:FindFirstChildOfClass("Backpack")
+    local containers = {player.Character, backpack}
+
+    for _, container in ipairs(containers) do
+        if container then
+            for _, tool in ipairs(container:GetChildren()) do
+                if tool:IsA("Tool") then
+                    local n = tool.Name:lower()
+                    if n:find("bomb") or n:find("c4") or n:find("gold") then
+                        table.insert(found, tool)
+                    end
+                end
+            end
+        end
+    end
+    return found
+end
+
+local function remember(obj)
+    if original[obj] then return end
+    if obj:IsA("BasePart") then
+        original[obj] = {
+            Color = obj.Color,
+            Material = obj.Material,
+        }
+    elseif obj:IsA("SpecialMesh") then
+        original[obj] = {
+            TextureId = obj.TextureId,
+        }
+    end
+end
+
+local function paint(tool, color)
+    for _, obj in ipairs(tool:GetDescendants()) do
+        remember(obj)
+
+        if obj:IsA("BasePart") then
+            obj.Color = color
+            obj.Material = Enum.Material.SmoothPlastic
+
+            if obj:IsA("MeshPart") then
+                obj.TextureID = ""
+            end
+        elseif obj:IsA("SpecialMesh") then
+            obj.TextureId = ""
+        end
+    end
+end
+
+local function apply()
+    for _, tool in ipairs(getBombs()) do
+        if rainbowColor then
+            paint(tool, Color3.fromHSV(hue, 1, 1))
+        elseif selectedColor then
+            paint(tool, selectedColor)
+        end
+
+        local handle = tool:FindFirstChild("Handle")
+            or tool:FindFirstChildWhichIsA("BasePart")
+
+        if handle and selectedEffect then
+            local sparkle = handle:FindFirstChild("AEATZZE_Sparkle")
+
+            if not sparkle then
+                sparkle = Instance.new("Sparkles")
+                sparkle.Name = "AEATZZE_Sparkle"
+                sparkle.Parent = handle
+            end
+
+            if rainbowEffect then
+                sparkle.SparkleColor = Color3.fromHSV(hue, 1, 1)
+            elseif selectedEffect == "Pink" then
+                sparkle.SparkleColor = Color3.fromRGB(255, 105, 180)
+            elseif selectedEffect == "Blue" then
+                sparkle.SparkleColor = Color3.fromRGB(0, 191, 255)
+            elseif selectedEffect == "Gray" then
+                sparkle.SparkleColor = Color3.fromRGB(128, 128, 128)
+            end
+        end
+    end
+end
+
+local colors = {
+    {"Red", 255, 50, 50},
+    {"Orange", 255, 128, 0},
+    {"Yellow", 255, 220, 50},
+    {"Green", 50, 220, 50},
+    {"Blue", 0, 160, 255},
+    {"DarkBlue", 0, 35, 160},
+    {"Purple", 140, 50, 255},
+    {"Pink", 255, 105, 180},
+    {"Black", 15, 15, 15},
+    {"White", 245, 245, 245},
+}
+
+local function makeButton(parent, text, color, callback, height)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(1, 0, 0, height or 29)
+    b.BackgroundColor3 = color or Color3.fromRGB(40, 40, 48)
+    b.BorderSizePixel = 0
+    b.Text = text
+    b.TextColor3 = Color3.new(1, 1, 1)
+    b.Font = Enum.Font.GothamBold
+    b.TextSize = 11
+    b.Parent = parent
+    corner(b, 5)
+    b.Activated:Connect(callback)
+    return b
+end
+
+makeButton(colorList, "RGB", Color3.fromRGB(100, 50, 150), function()
+    rainbowColor = not rainbowColor
+    if rainbowColor then
+        selectedColor = nil
+    end
+    apply()
+end)
+
+for _, data in ipairs(colors) do
+    local name = data[1]
+    local color = Color3.fromRGB(data[2], data[3], data[4])
+
+    makeButton(colorList, name, color, function()
+        rainbowColor = false
+        selectedColor = color
+        apply()
+    end)
+end
+
+for _, effect in ipairs({"Rainbow", "Pink", "Blue", "Gray"}) do
+    makeButton(effectList, effect .. " Sparkling",
+        Color3.fromRGB(40, 40, 48), function()
+            selectedEffect = effect
+            rainbowEffect = effect == "Rainbow"
+            apply()
+        end, 18)
+end
+
+activeConnections.heartbeat = RunService.Heartbeat:Connect(function(dt)
+    if rainbowColor or rainbowEffect then
+        hue = (hue + dt * 0.5) % 1
+        apply()
+    end
+end)
+
+local minimized = false
+
+minimize.Activated:Connect(function()
+    minimized = not minimized
+    content.Visible = not minimized
+    main.Size = minimized
+        and UDim2.fromOffset(300, 35)
+        or UDim2.fromOffset(300, 285)
+    minimize.Text = minimized and "+" or "-"
+end)
+
+close.Activated:Connect(function()
+    for _, connection in pairs(activeConnections) do
+        connection:Disconnect()
+    end
+    gui:Destroy()
+end)
+
+-- Drag support for touch and mouse
+local dragging, dragStart, startPosition
+
+top.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPosition = main.Position
+    end
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if dragging and (
+        input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch
+    ) then
+        local delta = input.Position - dragStart
+        main.Position = UDim2.new(
+            startPosition.X.Scale,
+            startPosition.X.Offset + delta.X,
+            startPosition.Y.Scale,
+            startPosition.Y.Offset + delta.Y
+        )
+    end
+end)
+
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
